@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import {
   Chart as ChartJS,
@@ -26,17 +26,17 @@ ChartJS.register(
   Filler
 );
 
-// -----------------------------------------------
-// CHANGE THIS to your Render URL after deployment
-// For now it points to your local backend
-// -----------------------------------------------
 const API = "https://ai-trading-backend-ny5g.onrender.com";
 
 export default function Home() {
-  const [portfolio, setPortfolio] = useState({
+  const [pnl, setPnl] = useState({
+    holdings: {},
+    total_invested: 0,
+    total_current_value: 0,
+    total_pnl: 0,
+    total_pnl_pct: 0,
     cash: 0,
-    stocks: {},
-    total_portfolio_value: 0,
+    portfolio_value: 0,
   });
   const [symbol, setSymbol] = useState("");
   const [stockData, setStockData] = useState(null);
@@ -46,10 +46,9 @@ export default function Home() {
   const [watchlist, setWatchlist] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
-  const [botStatus, setBotStatus] = useState("ACTIVE");
-  const [lastUpdated, setLastUpdated] = useState("");
-  const [newWatchSymbol, setNewWatchSymbol] = useState("");
   const [notification, setNotification] = useState(null);
+  const [newWatchSymbol, setNewWatchSymbol] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("");
 
   const showNotification = (msg, type = "success") => {
     setNotification({ msg, type });
@@ -57,20 +56,20 @@ export default function Home() {
   };
 
   // -----------------------------------------------
-  // FETCH PORTFOLIO
+  // FETCH P&L (live prices + profit/loss)
   // -----------------------------------------------
-  const fetchPortfolio = async () => {
+  const fetchPnl = async () => {
     try {
-      const res = await axios.get(`${API}/portfolio/value`);
-      setPortfolio(res.data);
+      const res = await axios.get(`${API}/portfolio/pnl`);
+      setPnl(res.data);
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (e) {
-      console.error("Portfolio error:", e);
+      console.error("PnL Error:", e);
     }
   };
 
   // -----------------------------------------------
-  // FETCH SIGNALS (auto-bot results)
+  // FETCH SIGNALS
   // -----------------------------------------------
   const fetchSignals = async () => {
     try {
@@ -80,7 +79,7 @@ export default function Home() {
   };
 
   // -----------------------------------------------
-  // FETCH TRADE HISTORY
+  // FETCH TRADES
   // -----------------------------------------------
   const fetchTrades = async () => {
     try {
@@ -147,7 +146,7 @@ export default function Home() {
         showNotification(res.data.error, "error");
       } else {
         showNotification(`✅ Bought 1 share of ${symbol}`);
-        fetchPortfolio();
+        fetchPnl();
         fetchTrades();
       }
     } catch (e) {
@@ -166,7 +165,7 @@ export default function Home() {
         showNotification(res.data.error, "error");
       } else {
         showNotification(`✅ Sold 1 share of ${symbol}`);
-        fetchPortfolio();
+        fetchPnl();
         fetchTrades();
       }
     } catch (e) {
@@ -175,14 +174,14 @@ export default function Home() {
   };
 
   // -----------------------------------------------
-  // TRIGGER MANUAL SCAN
+  // TRIGGER SCAN
   // -----------------------------------------------
   const triggerScan = async () => {
     showNotification("🔍 Scanning market...", "info");
     try {
       await axios.post(`${API}/scan`);
       await fetchSignals();
-      await fetchPortfolio();
+      await fetchPnl();
       await fetchTrades();
       showNotification("✅ Scan complete!");
     } catch (e) {
@@ -191,7 +190,7 @@ export default function Home() {
   };
 
   // -----------------------------------------------
-  // ADD TO WATCHLIST
+  // WATCHLIST
   // -----------------------------------------------
   const addToWatchlist = async () => {
     if (!newWatchSymbol) return;
@@ -199,13 +198,10 @@ export default function Home() {
       await axios.post(`${API}/watchlist/add/${newWatchSymbol}`);
       setNewWatchSymbol("");
       fetchWatchlist();
-      showNotification(`Added ${newWatchSymbol} to watchlist`);
+      showNotification(`Added ${newWatchSymbol}`);
     } catch (e) {}
   };
 
-  // -----------------------------------------------
-  // REMOVE FROM WATCHLIST
-  // -----------------------------------------------
   const removeFromWatchlist = async (sym) => {
     try {
       await axios.delete(`${API}/watchlist/remove/${sym}`);
@@ -214,25 +210,25 @@ export default function Home() {
   };
 
   // -----------------------------------------------
-  // AUTO REFRESH every 10 seconds
+  // AUTO REFRESH every 15 seconds
   // -----------------------------------------------
   useEffect(() => {
-    fetchPortfolio();
+    fetchPnl();
     fetchSignals();
     fetchTrades();
     fetchWatchlist();
 
     const interval = setInterval(() => {
-      fetchPortfolio();
+      fetchPnl();
       fetchSignals();
       fetchTrades();
-    }, 10000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
 
   // -----------------------------------------------
-  // SIGNAL COLOR
+  // HELPERS
   // -----------------------------------------------
   const signalColor = (s) => {
     if (s === "BUY") return "text-green-400";
@@ -246,12 +242,9 @@ export default function Home() {
     return "bg-yellow-900 border-yellow-700";
   };
 
-  const tradeColor = (t) =>
-    t === "BUY" ? "text-green-400" : "text-red-400";
+  const pnlColor = (val) => (val >= 0 ? "text-green-400" : "text-red-400");
+  const pnlPrefix = (val) => (val >= 0 ? "+" : "");
 
-  // -----------------------------------------------
-  // CHART OPTIONS
-  // -----------------------------------------------
   const chartOptions = {
     responsive: true,
     plugins: {
@@ -288,7 +281,7 @@ export default function Home() {
             AI Trading Bot
           </h1>
           <span className="text-xs text-zinc-500 bg-zinc-900 px-3 py-1 rounded-full border border-zinc-700">
-            AUTO TRADING: {botStatus}
+            AUTO TRADING: ACTIVE
           </span>
         </div>
         <div className="flex items-center gap-4 text-xs text-zinc-500">
@@ -297,7 +290,7 @@ export default function Home() {
             onClick={triggerScan}
             className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition"
           >
-            ⚡ Run Scan Now
+            ⚡ Scan Now
           </button>
         </div>
       </div>
@@ -320,35 +313,41 @@ export default function Home() {
 
       <div className="p-8">
 
-        {/* ======================== DASHBOARD ======================== */}
+        {/* ==================== DASHBOARD ==================== */}
         {activeTab === "dashboard" && (
           <div>
-            {/* PORTFOLIO CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
-                <p className="text-zinc-500 text-sm mb-2">Cash Balance</p>
-                <p className="text-3xl font-bold text-green-400">
-                  ₹ {portfolio.cash?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+
+            {/* TOP SUMMARY CARDS */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                <p className="text-zinc-500 text-xs mb-1">Cash</p>
+                <p className="text-2xl font-bold text-green-400">
+                  ₹{pnl.cash?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
-                <p className="text-zinc-500 text-sm mb-2">Portfolio Value</p>
-                <p className="text-3xl font-bold text-blue-400">
-                  ₹ {portfolio.total_portfolio_value?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                <p className="text-zinc-500 text-xs mb-1">Portfolio Value</p>
+                <p className="text-2xl font-bold text-blue-400">
+                  ₹{pnl.portfolio_value?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
-                <p className="text-zinc-500 text-sm mb-2">P&L</p>
-                <p className={`text-3xl font-bold ${(portfolio.total_portfolio_value - 100000) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {(portfolio.total_portfolio_value - 100000) >= 0 ? "+" : ""}
-                  ₹ {(portfolio.total_portfolio_value - 100000).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                <p className="text-zinc-500 text-xs mb-1">Total P&L</p>
+                <p className={`text-2xl font-bold ${pnlColor(pnl.total_pnl)}`}>
+                  {pnlPrefix(pnl.total_pnl)}₹{Math.abs(pnl.total_pnl)?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                <p className="text-zinc-500 text-xs mb-1">P&L %</p>
+                <p className={`text-2xl font-bold ${pnlColor(pnl.total_pnl_pct)}`}>
+                  {pnlPrefix(pnl.total_pnl_pct)}{pnl.total_pnl_pct?.toFixed(2)}%
                 </p>
               </div>
             </div>
 
-            {/* SEARCH + BUY/SELL */}
+            {/* SEARCH + TRADE */}
             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl mb-8">
-              <p className="text-zinc-400 text-sm mb-3 font-bold uppercase tracking-widest">Manual Trade</p>
+              <p className="text-zinc-400 text-xs mb-3 font-bold uppercase tracking-widest">Manual Trade</p>
               <div className="flex flex-wrap gap-3">
                 <input
                   type="text"
@@ -370,7 +369,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* STOCK ANALYSIS CARD */}
+            {/* STOCK ANALYSIS */}
             {stockData && !stockData.error && (
               <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl mb-8">
                 <div className="flex items-center justify-between mb-5">
@@ -382,7 +381,7 @@ export default function Home() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-zinc-800 p-4 rounded-lg">
                     <p className="text-zinc-500 text-xs mb-1">Price</p>
-                    <p className="text-xl font-bold text-green-400">₹ {stockData.current_price}</p>
+                    <p className="text-xl font-bold text-green-400">₹{stockData.current_price}</p>
                   </div>
                   <div className="bg-zinc-800 p-4 rounded-lg">
                     <p className="text-zinc-500 text-xs mb-1">RSI</p>
@@ -402,7 +401,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* LINE CHART */}
+            {/* CHART */}
             {chartData.labels.length > 0 && (
               <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl mb-8">
                 <h2 className="text-lg font-bold mb-4">30-Day Price Chart</h2>
@@ -410,39 +409,66 @@ export default function Home() {
               </div>
             )}
 
-            {/* HOLDINGS */}
+            {/* HOLDINGS WITH LIVE P&L */}
             <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
-              <h2 className="text-lg font-bold mb-4">Holdings</h2>
-              {Object.keys(portfolio.stocks).length > 0 ? (
-                Object.entries(portfolio.stocks).map(([sym, data]) => (
-                  <div key={sym} className="border-b border-zinc-800 py-4 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-lg">{sym}</p>
-                      <p className="text-zinc-500 text-sm">
-                        {data.quantity} shares · ₹{data.current_price} each
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-green-400 font-bold text-lg">₹ {data.total_value}</p>
-                      <div className="flex gap-2 mt-1 justify-end">
-                        <button
-                          onClick={() => { setSymbol(sym); fetchStockData(sym); setActiveTab("dashboard"); }}
-                          className="text-xs bg-zinc-800 px-2 py-1 rounded hover:bg-zinc-700 transition"
-                        >
-                          View
-                        </button>
+              <h2 className="text-lg font-bold mb-4">Holdings — Live P&L</h2>
+              {Object.keys(pnl.holdings).length > 0 ? (
+                <div>
+                  {/* Table Header */}
+                  <div className="grid grid-cols-6 text-xs text-zinc-500 uppercase pb-2 border-b border-zinc-800 mb-2">
+                    <span>Symbol</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Avg Buy</span>
+                    <span className="text-right">Live Price</span>
+                    <span className="text-right">Value</span>
+                    <span className="text-right">P&L</span>
+                  </div>
+                  {Object.entries(pnl.holdings).map(([sym, data]) => (
+                    <div
+                      key={sym}
+                      className="grid grid-cols-6 py-4 border-b border-zinc-800 items-center hover:bg-zinc-800 transition cursor-pointer"
+                      onClick={() => { setSymbol(sym); fetchStockData(sym); }}
+                    >
+                      <span className="font-bold text-white">{sym}</span>
+                      <span className="text-right text-zinc-400">{data.quantity}</span>
+                      <span className="text-right text-zinc-400">₹{data.avg_buy_price}</span>
+                      <span className="text-right text-white font-bold">₹{data.current_price}</span>
+                      <span className="text-right text-blue-400">₹{data.current_value}</span>
+                      <div className="text-right">
+                        <p className={`font-bold ${pnlColor(data.pnl)}`}>
+                          {pnlPrefix(data.pnl)}₹{Math.abs(data.pnl).toFixed(2)}
+                        </p>
+                        <p className={`text-xs ${pnlColor(data.pnl_pct)}`}>
+                          {pnlPrefix(data.pnl_pct)}{data.pnl_pct.toFixed(2)}%
+                        </p>
                       </div>
                     </div>
+                  ))}
+                  {/* Total Row */}
+                  <div className="grid grid-cols-6 py-4 mt-2 items-center font-bold">
+                    <span className="text-zinc-400">TOTAL</span>
+                    <span></span>
+                    <span className="text-right text-zinc-400">₹{pnl.total_invested?.toFixed(2)}</span>
+                    <span></span>
+                    <span className="text-right text-blue-400">₹{pnl.total_current_value?.toFixed(2)}</span>
+                    <div className="text-right">
+                      <p className={`font-bold ${pnlColor(pnl.total_pnl)}`}>
+                        {pnlPrefix(pnl.total_pnl)}₹{Math.abs(pnl.total_pnl).toFixed(2)}
+                      </p>
+                      <p className={`text-xs ${pnlColor(pnl.total_pnl_pct)}`}>
+                        {pnlPrefix(pnl.total_pnl_pct)}{pnl.total_pnl_pct?.toFixed(2)}%
+                      </p>
+                    </div>
                   </div>
-                ))
+                </div>
               ) : (
-                <p className="text-zinc-500">No holdings. Bot will auto-buy when signals appear.</p>
+                <p className="text-zinc-500">No holdings yet. Bot will auto-buy when signals appear.</p>
               )}
             </div>
           </div>
         )}
 
-        {/* ======================== SIGNALS ======================== */}
+        {/* ==================== SIGNALS ==================== */}
         {activeTab === "signals" && (
           <div>
             <div className="flex items-center justify-between mb-6">
@@ -471,7 +497,7 @@ export default function Home() {
                       <p className="font-bold text-lg">{s.symbol}</p>
                       <span className={`font-bold text-sm ${signalColor(s.signal)}`}>{s.signal}</span>
                     </div>
-                    <p className="text-2xl font-bold text-white mb-2">₹ {s.current_price}</p>
+                    <p className="text-2xl font-bold text-white mb-2">₹{s.current_price}</p>
                     <div className="flex gap-4 text-xs text-zinc-400 mb-2">
                       <span>RSI {s.RSI}</span>
                       <span>SMA20 {s.SMA20}</span>
@@ -494,7 +520,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ======================== TRADES ======================== */}
+        {/* ==================== TRADES ==================== */}
         {activeTab === "trades" && (
           <div>
             <h2 className="text-lg font-bold mb-6">Trade History</h2>
@@ -519,9 +545,9 @@ export default function Home() {
                     {trades.map((t, i) => (
                       <tr key={i} className="border-b border-zinc-800 hover:bg-zinc-800 transition">
                         <td className="p-4 text-zinc-400 text-xs">{t.time}</td>
-                        <td className={`p-4 font-bold ${tradeColor(t.type)}`}>{t.type}</td>
+                        <td className={`p-4 font-bold ${t.type === "BUY" ? "text-green-400" : "text-red-400"}`}>{t.type}</td>
                         <td className="p-4 font-bold">{t.symbol}</td>
-                        <td className="p-4 text-right">₹ {t.price}</td>
+                        <td className="p-4 text-right">₹{t.price}</td>
                         <td className="p-4 text-right">{t.quantity}</td>
                         <td className="p-4">
                           <span className={`text-xs px-2 py-1 rounded-full ${t.mode === "AUTO" ? "bg-blue-900 text-blue-300" : "bg-zinc-700 text-zinc-300"}`}>
@@ -537,7 +563,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ======================== WATCHLIST ======================== */}
+        {/* ==================== WATCHLIST ==================== */}
         {activeTab === "watchlist" && (
           <div>
             <h2 className="text-lg font-bold mb-6">Watchlist</h2>
@@ -577,7 +603,7 @@ export default function Home() {
             </div>
             <div className="mt-6 bg-zinc-900 border border-zinc-800 p-5 rounded-xl text-sm text-zinc-400">
               <p className="font-bold text-white mb-2">Symbol Format</p>
-              <p>Indian stocks → add <code className="bg-zinc-800 px-1 rounded">.NS</code> suffix (e.g. <code className="bg-zinc-800 px-1 rounded">RELIANCE.NS</code>)</p>
+              <p>Indian stocks → add <code className="bg-zinc-800 px-1 rounded">.NS</code> (e.g. <code className="bg-zinc-800 px-1 rounded">RELIANCE.NS</code>)</p>
               <p className="mt-1">US stocks → just the ticker (e.g. <code className="bg-zinc-800 px-1 rounded">AAPL</code>, <code className="bg-zinc-800 px-1 rounded">GOOGL</code>)</p>
               <p className="mt-1">Crypto → e.g. <code className="bg-zinc-800 px-1 rounded">BTC-USD</code>, <code className="bg-zinc-800 px-1 rounded">ETH-USD</code></p>
             </div>
@@ -588,4 +614,3 @@ export default function Home() {
     </div>
   );
 }
- 
