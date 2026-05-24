@@ -16,10 +16,7 @@ import {
 
 import { Line } from "react-chartjs-2";
 
-import {
-  CandlestickController,
-  CandlestickElement
-} from "chartjs-chart-financial";
+const API = "https://ai-trading-backend-ny5g.onrender.com";
 
 ChartJS.register(
   CategoryScale,
@@ -28,12 +25,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend,
-  CandlestickController,
-  CandlestickElement
+  Legend
 );
-
-
 
 export default function Home() {
 
@@ -44,34 +37,19 @@ export default function Home() {
   });
 
   const [symbol, setSymbol] = useState("");
-
   const [stockData, setStockData] = useState(null);
-
-  const [candleData, setCandleData] = useState(null);
-
-  const [chartData, setChartData] = useState({
-    labels: [],
-    datasets: [],
-  });
+  const [chartData, setChartData] = useState({ labels: [], datasets: [] });
 
   // --------------------------------
   // Fetch Portfolio
   // --------------------------------
 
   const fetchPortfolio = async () => {
-
     try {
-
-      const res = await axios.get(
-        "http://127.0.0.1:8000/portfolio/value"
-      );
-
+      const res = await axios.get(`${API}/portfolio/value`);
       setPortfolio(res.data);
-
     } catch (error) {
-
       console.error("Portfolio Error:", error);
-
     }
   };
 
@@ -80,25 +58,13 @@ export default function Home() {
   // --------------------------------
 
   const fetchStockData = async () => {
-
     if (!symbol) return;
-
     try {
-
-      const res = await axios.get(
-        `http://127.0.0.1:8000/stock/${symbol}`
-      );
-
+      const res = await axios.get(`${API}/stock/${symbol}`);
       setStockData(res.data);
-
       fetchChartData();
-
-      fetchCandles();
-
     } catch (error) {
-
       console.error("Stock Error:", error);
-
     }
   };
 
@@ -107,15 +73,9 @@ export default function Home() {
   // --------------------------------
 
   const fetchChartData = async () => {
-
     if (!symbol) return;
-
     try {
-
-      const res = await axios.get(
-        `http://127.0.0.1:8000/history/${symbol}`
-      );
-
+      const res = await axios.get(`${API}/history/${symbol}`);
       setChartData({
         labels: res.data.dates,
         datasets: [
@@ -128,63 +88,23 @@ export default function Home() {
           },
         ],
       });
-
     } catch (error) {
-
       console.error("Chart Error:", error);
-
     }
   };
-
-
-  const fetchCandles = async () => {
-
-  if (!symbol) return;
-
-  try {
-
-    const res = await axios.get(
-      `http://127.0.0.1:8000/candles/${symbol}`
-    );
-
-    setCandleData({
-      datasets: [
-        {
-          label: symbol,
-          data: res.data,
-        },
-      ],
-    });
-
-  } catch (error) {
-
-    console.error("Candle Error:", error);
-
-  }
-};
 
   // --------------------------------
   // Buy Stock
   // --------------------------------
 
   const buyStock = async () => {
-
     if (!symbol) return;
-
     try {
-
-      await axios.post(
-        `http://127.0.0.1:8000/buy/${symbol}?quantity=1`
-      );
-
+      await axios.post(`${API}/buy/${symbol}?quantity=1`);
       fetchPortfolio();
-
       fetchStockData();
-
     } catch (error) {
-
       console.error("Buy Error:", error);
-
     }
   };
 
@@ -193,23 +113,13 @@ export default function Home() {
   // --------------------------------
 
   const sellStock = async () => {
-
     if (!symbol) return;
-
     try {
-
-      await axios.post(
-        `http://127.0.0.1:8000/sell/${symbol}?quantity=1`
-      );
-
+      await axios.post(`${API}/sell/${symbol}?quantity=1`);
       fetchPortfolio();
-
       fetchStockData();
-
     } catch (error) {
-
       console.error("Sell Error:", error);
-
     }
   };
 
@@ -218,243 +128,141 @@ export default function Home() {
   // --------------------------------
 
   useEffect(() => {
-
     fetchPortfolio();
-
     const interval = setInterval(() => {
-
       fetchPortfolio();
-
     }, 5000);
-
     return () => clearInterval(interval);
-
   }, []);
 
   return (
-
     <div className="min-h-screen bg-black text-white p-10">
 
       {/* Header */}
-
       <h1 className="text-5xl font-bold mb-10 text-green-400">
         AI Trading Dashboard
       </h1>
 
       {/* Search */}
-
       <div className="flex gap-4 mb-10">
-
         <input
           className="bg-zinc-900 border border-zinc-700 p-4 rounded-xl w-80 text-white outline-none"
-          placeholder="Enter stock symbol"
+          placeholder="Enter stock symbol (e.g. TCS.NS)"
           value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
+          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && fetchStockData()}
         />
-
         <button
           onClick={fetchStockData}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-4 rounded-xl"
         >
           Search
         </button>
-
         <button
           onClick={buyStock}
           className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl"
         >
           Buy
         </button>
-
         <button
           onClick={sellStock}
           className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl"
         >
           Sell
         </button>
-
       </div>
 
       {/* Stock Data */}
-
-      {
-
-        stockData && (
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg mb-10">
-
-            <h2 className="text-3xl font-bold mb-6 text-white">
-              Stock Analysis
-            </h2>
-
-            <div className="grid grid-cols-2 gap-6">
-
-              <div>
-                <p className="text-zinc-400">Current Price</p>
-                <p className="text-2xl font-bold text-green-400">
-                  ₹ {stockData.current_price}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-zinc-400">RSI</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  {stockData.RSI}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-zinc-400">SMA20</p>
-                <p className="text-2xl font-bold text-blue-400">
-                  {stockData.SMA20}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-zinc-400">SMA50</p>
-                <p className="text-2xl font-bold text-purple-400">
-                  {stockData.SMA50}
-                </p>
-              </div>
-
-            </div>
-
-            <div className="mt-6">
-
-              <p className="text-zinc-400 mb-2">
-                AI Signal
+      {stockData && (
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg mb-10">
+          <h2 className="text-3xl font-bold mb-6 text-white">
+            Stock Analysis — {stockData.symbol}
+          </h2>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-zinc-400">Current Price</p>
+              <p className="text-2xl font-bold text-green-400">
+                ₹ {stockData.current_price}
               </p>
-
-              <div className="inline-block bg-green-600 px-5 py-3 rounded-xl text-xl font-bold">
-                {stockData.AI_signal}
-              </div>
-
             </div>
-
+            <div>
+              <p className="text-zinc-400">RSI</p>
+              <p className={`text-2xl font-bold ${
+                stockData.RSI < 30 ? "text-green-400"
+                : stockData.RSI > 70 ? "text-red-400"
+                : "text-yellow-400"
+              }`}>
+                {stockData.RSI}
+              </p>
+            </div>
+            <div>
+              <p className="text-zinc-400">SMA20</p>
+              <p className="text-2xl font-bold text-blue-400">{stockData.SMA20}</p>
+            </div>
+            <div>
+              <p className="text-zinc-400">SMA50</p>
+              <p className="text-2xl font-bold text-purple-400">{stockData.SMA50}</p>
+            </div>
           </div>
-
-        )
-
-      }
-
-
-      {/* Candlestick Chart */}
-
-{
-  candleData && (
-
-    <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg mb-10">
-
-      <h2 className="text-3xl font-bold mb-6">
-        Candlestick Chart
-      </h2>
-
-      <Line
-        data={candleData}
-        options={{
-          responsive: true,
-        }}
-      />
-
-    </div>
-
-  )
-}
+          <div className="mt-6">
+            <p className="text-zinc-400 mb-2">AI Signal</p>
+            <div className={`inline-block px-5 py-3 rounded-xl text-xl font-bold ${
+              stockData.signal === "BUY" ? "bg-green-600"
+              : stockData.signal === "SELL" ? "bg-red-600"
+              : "bg-yellow-600"
+            }`}>
+              {stockData.signal} · {stockData.confidence}% confidence
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chart */}
+      {chartData.labels.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg mb-10">
+          <h2 className="text-3xl font-bold mb-6">30-Day Price Chart</h2>
+          <Line data={chartData} />
+        </div>
+      )}
 
-      {
-
-        chartData.labels.length > 0 && (
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg mb-10">
-
-            <h2 className="text-3xl font-bold mb-6">
-              Live Stock Chart
-            </h2>
-
-            <Line data={chartData} />
-
-          </div>
-
-        )
-
-      }
-
-      {/* Portfolio */}
-
+      {/* Portfolio Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg">
-
-          <h2 className="text-2xl font-bold mb-3 text-zinc-400">
-            Cash Balance
-          </h2>
-
+          <h2 className="text-2xl font-bold mb-3 text-zinc-400">Cash Balance</h2>
           <p className="text-4xl font-bold text-green-400">
-            ₹ {portfolio.cash}
+            ₹ {portfolio.cash?.toLocaleString("en-IN")}
           </p>
-
         </div>
-
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg">
-
-          <h2 className="text-2xl font-bold mb-3 text-zinc-400">
-            Portfolio Value
-          </h2>
-
+          <h2 className="text-2xl font-bold mb-3 text-zinc-400">Portfolio Value</h2>
           <p className="text-4xl font-bold text-blue-400">
-            ₹ {portfolio.total_portfolio_value}
+            ₹ {portfolio.total_portfolio_value?.toLocaleString("en-IN")}
           </p>
-
         </div>
-
       </div>
 
       {/* Holdings */}
-
       <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-lg">
-
-        <h2 className="text-3xl font-bold mb-6">
-          Holdings
-        </h2>
-
-        {
-
-          Object.entries(portfolio.stocks).length > 0 ? (
-
-            Object.entries(portfolio.stocks).map(([symbol, value]) => (
-
-              <div
-                key={symbol}
-                className="border-b border-zinc-800 py-4 flex justify-between"
-              >
-
-                <p className="text-xl font-bold">
-                  {symbol}
+        <h2 className="text-3xl font-bold mb-6">Holdings</h2>
+        {Object.entries(portfolio.stocks).length > 0 ? (
+          Object.entries(portfolio.stocks).map(([sym, data]) => (
+            <div key={sym} className="border-b border-zinc-800 py-4 flex justify-between items-center">
+              <div>
+                <p className="text-xl font-bold">{sym}</p>
+                <p className="text-zinc-500 text-sm">
+                  {typeof data === "object" ? `${data.quantity} shares · ₹${data.current_price} each` : ""}
                 </p>
-
-                <p className="text-green-400 text-xl">
-                  ₹ {value}
-                </p>
-
               </div>
-
-            ))
-
-          ) : (
-
-            <p className="text-zinc-500">
-              No holdings
-            </p>
-
-          )
-
-        }
-
+              <p className="text-green-400 text-xl font-bold">
+                ₹ {typeof data === "object" ? data.total_value : data}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="text-zinc-500">No holdings yet</p>
+        )}
       </div>
 
     </div>
-
   );
 }
